@@ -4,7 +4,11 @@
 import argparse
 import sys
 from pprint import pprint as pp
-from scapy.all import sr1, IP, ICMP
+import traceback
+from scapy import *
+from scapy.all import *
+from scapy.error import *
+from time import sleep
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -20,5 +24,15 @@ if __name__ == "__main__":
     if argv.output is None:
         sys.stderr.write("Musí být zadáno %r\n" % ("-o", ))
         exit(1)
+    print argv.file
 
-    print pp(argv)
+    if argv.file:
+        try:
+            file = PcapReader(argv.file)
+            for p in file:
+                print p.payload
+                sleep(1)
+        except Exception, e:
+            print traceback.format_exc(e)
+            sys.stderr.write(e.msg)
+            exit(1)
