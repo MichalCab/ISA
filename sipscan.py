@@ -9,6 +9,7 @@ from scapy import *
 from scapy.all import *
 from scapy.error import *
 from time import sleep
+import xml.etree.ElementTree as ET
 
 def pkt_callback(pkt):
     pkt.show() # debug statement
@@ -30,15 +31,18 @@ if __name__ == "__main__":
         exit(1)
     print argv.file
 
+    root = ET.Element("sipscan")
     if argv.file:
-        try:
-            file = PcapReader(argv.file)
-            for p in file:
-                print repr(p)
+        pkts = PcapReader(argv.file)
+        tcp = TCP(sport="sip")
+        udp = UDP(sport="sip")
+        for pkt in pkts:
+            if pkt/IP()/TCP(sport="sip"):
+                print repr(pkt)
+                print pkt.sprintf("{IP:%IP.src% -> %IP.dst%}")
+                pp(pkt.sprintf("{Raw:%Raw.load%}").split("\\r\\n"))
                 sleep(1)
-        except Exception, e:
-            print traceback.format_exc(e)
-            sys.stderr.write(e.msg)
-            exit(1)
     else:
         sniff(iface=argv.interface, prn=pkt_callback, filter="port %s" % argv.port, store=0)
+
+    tree.write()
