@@ -10,6 +10,10 @@ from scapy.all import *
 from scapy.error import *
 from time import sleep
 
+def pkt_callback(pkt):
+    pkt.show() # debug statement
+    sleep(1)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file", type=str, help="data pro analýzu se získají ze souboru formátu pcap se zadaným názvem")
@@ -30,9 +34,11 @@ if __name__ == "__main__":
         try:
             file = PcapReader(argv.file)
             for p in file:
-                print p.payload
+                print repr(p)
                 sleep(1)
         except Exception, e:
             print traceback.format_exc(e)
             sys.stderr.write(e.msg)
             exit(1)
+    else:
+        sniff(iface=argv.interface, prn=pkt_callback, filter="port %s" % argv.port, store=0)
