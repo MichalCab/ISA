@@ -34,14 +34,24 @@ if __name__ == "__main__":
     root = ET.Element("sipscan")
     if argv.file:
         pkts = PcapReader(argv.file)
-        tcp = TCP(sport="sip")
-        udp = UDP(sport="sip")
         for pkt in pkts:
-            if pkt/IP()/TCP(sport="sip"):
+            typ = TCP if (TCP in pkt) else None
+            typ = UDP if (UDP in pkt and typ is None) else None
+            print typ
+            print repr(pkt)
+            if typ is None:
+                continue
+            print repr(pkt[typ].sport), repr(pkt[typ].dport)
+            if not (pkt[typ].sport == argv.port and pkt[typ].dport == argv.port and int(pkt[typ].len) > 15):
+                continue
+            print repr(pkt[typ].sport)
+            if pkt[typ]:
                 print repr(pkt)
                 print pkt.sprintf("{IP:%IP.src% -> %IP.dst%}")
                 pp(pkt.sprintf("{Raw:%Raw.load%}").split("\\r\\n"))
-                sleep(1)
+                if "BYE":
+                    pass
+                sleep(0.5)
     else:
         sniff(iface=argv.interface, prn=pkt_callback, filter="port %s" % argv.port, store=0)
 
