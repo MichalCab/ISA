@@ -13,16 +13,32 @@ from scapy.error import *
 from time import sleep
 import xml.etree.ElementTree as ET
 import signal
-import date_time
+import datetime
 import socket
+
 MIN_RAW_DATA_LEN = 15
 DEFAULT_SIP_SIGNALIZATION_PORT = 5060
+
+def indent(elem, level=0):
+    i = "\n" + level*"  "
+    if len(elem):
+        if not elem.text or not elem.text.strip():
+            elem.text = i + "  "
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = i
+        for elem in elem:
+            indent(elem, level+1)
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = i
+    else:
+        if level and (not elem.tail or not elem.tail.strip()):
+            elem.tail = i
 
 def packet_analysis(pkt):
     pass
 
 def save_registration(registration, root):
-    pp(registration)
+    #pp(registration)
     registration_xml = ET.SubElement(root, "registration")
     registrar_xml = ET.SubElement(registration_xml, "registrar")
     registrar_xml.set("ip", registration["registrar"]["ip"]) # "212.242.33.35"
@@ -40,7 +56,7 @@ def save_registration(registration, root):
     time_xml.set("registration", registration["time"]["registration"]) #2005-12-30T09:00:00
 
 def save_call(call, root):
-    pp(call)
+    #pp(call)
     call_xml = ET.SubElement(root, "call")
     caller_1_xml = ET.SubElement(call_xml, "caller")
     caller_1_xml.set("ip", call["caller_1"]["ip"]) # "192.168.1.117"
@@ -104,16 +120,17 @@ if __name__ == "__main__":
             if not (pkt[typ].sport == argv.port and pkt[typ].dport == argv.port and int(pkt[typ].len) > MIN_RAW_DATA_LEN):
                 continue
             if pkt[typ]:
-                print repr(pkt)
-                print pkt.sprintf("{IP:%IP.src% -> %IP.dst%}")
+                #print repr(pkt)
+                #print pkt.sprintf("{IP:%IP.src% -> %IP.dst%}")
 
                 #get main sip data from raw data
                 sip_data_list = pkt.sprintf("{Raw:%Raw.load%}").split("\\r\\n")
-                pp(sip_data_list)
+                #pp(sip_data_list)
                 timestamp = datetime.datetime.fromtimestamp(int(pkt.time)).strftime('%Y-%m-%d %H:%M:%S')
                 status = sip_data_list[0]
-                c_seq = [sip_data for sip_data in sip_data_list if sip_data.startwith("CSeq: ")][0]
+                c_seq = [sip_data for sip_data in sip_data_list if sip_data.startswith("CSeq: ")][0]
                 #init call
+                pp(sip_data_list)
                 if "200 OK" in status and "REGISTER" in c_seq:
                     registration = {}
                     registration["registrar"] = {}
@@ -121,7 +138,7 @@ if __name__ == "__main__":
                     registration["authentication"] = {}
                     registration["time"] = {}
                     sip_data_list = pkt.sprintf("{Raw:%Raw.load%}").split("\\r\\n")
-                    pp(sip_data_list)
+                    #pp(sip_data_list)
                     for sip_data in sip_data_list:
                         if "Contact: " in sip_data:
                             d = sip_data.split(" ")[1][:-2].split("@")[1][:-1]
@@ -147,9 +164,6 @@ if __name__ == "__main__":
                     call["rtp"]["callee"] = {}
                     call["rtp"]["codec"] = {}
 
-                    registration["registrar"]["ip"] = ""
-                    registration["registrar"]["uri"] = ""
-
                     call["caller_1"]["ip"] = "192.168.1.117"
                     call["caller_1"]["uri"] =  "bbb@192.168.1.50"
 
@@ -173,10 +187,11 @@ if __name__ == "__main__":
                     #set answer="2013-08-15T09:00:16"
                     call["time"]["answer"] = timestamp
                     
-            sleep(3)
+            #sleep(3)
     else:
         signal.signal(signal.SIGINT, sigint_handler)
         sniff(iface=argv.interface, prn=packet_analysis, filter="port %s" % argv.port, store=0)
 
+    indent(root)
     tree = ET.ElementTree(root)
     tree.write(argv.output)
