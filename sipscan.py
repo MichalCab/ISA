@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 import signal
 import datetime
 import socket
+import traceback
 
 MIN_RAW_DATA_LEN = 15
 DEFAULT_SIP_SIGNALIZATION_PORT = 5060
@@ -39,7 +40,6 @@ def packet_analysis(pkt):
 
 def save_registration(registration, root):
     #pp(registration)
-    print "saving registration"
     registration_xml = ET.SubElement(root, "registration")
     registrar_xml = ET.SubElement(registration_xml, "registrar")
     registrar_xml.set("ip", registration["registrar"]["ip"]) # "212.242.33.35"
@@ -57,33 +57,35 @@ def save_registration(registration, root):
     time_xml = ET.SubElement(registration_xml, "time")
     time_xml.set("registration", registration["time"]["registration"]) #2005-12-30T09:00:00
 
-def save_call(call, root):
+def save_call(call, root, rtp=True):
     #pp(call)
     call_xml = ET.SubElement(root, "call")
     caller_xml = ET.SubElement(call_xml, "caller")
     caller_xml.set("ip", call["caller"]["ip"]) # "192.168.1.117"
-    caller_xml.set("ip", call["caller"]["uri"]) # bbb@192.168.1.50
+    caller_xml.set("uri", call["caller"]["uri"]) # bbb@192.168.1.50
 
-    callee_xml = ET.SubElement(call_xml, "caller")
+    callee_xml = ET.SubElement(call_xml, "callee")
     callee_xml.set("ip", call["callee"]["ip"]) # "192.168.1.117"
-    callee_xml.set("ip", call["callee"]["uri"]) # bbb@192.168.1.50
+    callee_xml.set("uri", call["callee"]["uri"]) # bbb@192.168.1.50
 
     time_xml = ET.SubElement(call_xml, "time")
     time_xml.set("start", call["time"]["start"]) # 2013-08-15T09:00:02
+    time_xml.set("answer", call["time"]["answer"]) # 2013-08-15T09:00:02
+    time_xml.set("end", call["time"]["end"]) # 2013-08-15T09:00:02
+    if rtp:
+        #rtp
+        rtp_xml = ET.SubElement(call_xml, "rtp")
+        caller_xml = ET.SubElement(rtp_xml, "caller")
+        caller_xml.set("ip", call["rtp"]["caller"]["ip"]) # "192.168.1.117"
+        caller_xml.set("port", call["rtp"]["caller"]["port"]) # "5084"
 
-    #rtp
-    rtp_xml = ET.SubElement(call_xml, "rtp")
-    caller_xml = ET.SubElement(rtp_xml, "caller")
-    caller_xml.set("ip", call["rtp"]["caller"]["ip"]) # "192.168.1.117"
-    caller_xml.set("port", call["rtp"]["caller"]["port"]) # "5084"
+        callee_xml = ET.SubElement(rtp_xml, "callee")
+        callee_xml.set("ip", call["rtp"]["callee"]["ip"]) # "192.168.1.50"
+        callee_xml.set("port", call["rtp"]["callee"]["port"]) # "5066"
 
-    callee_xml = ET.SubElement(rtp_xml, "callee")
-    callee_xml.set("ip", call["rtp"]["callee"]["ip"]) # "192.168.1.50"
-    callee_xml.set("port", call["rtp"]["callee"]["port"]) # "5066"
-
-    codec_xml = ET.SubElement(rtp_xml, "codec")
-    codec_xml.set("payload-type", call["rtp"]["codec"]["payload-type"]) # "3"
-    codec_xml.set("name", call["rtp"]["codec"]["name"]) # gsm/8000/1
+        codec_xml = ET.SubElement(rtp_xml, "codec")
+        codec_xml.set("payload-type", call["rtp"]["codec"]["payload-type"]) # "3"
+        codec_xml.set("name", call["rtp"]["codec"]["name"]) # gsm/8000/1
 
 def output_error(msg):
     sys.stderr.write(msg)
@@ -119,6 +121,7 @@ if __name__ == "__main__":
         call["rtp"]["caller"] = {}
         call["rtp"]["callee"] = {}
         call["rtp"]["codec"] = {}
+        call["rtp"]["codec"]["payload-type"] = ""
         registration = {}
         registration["registrar"] = {}
         registration["user-agent"] = {}
@@ -139,7 +142,7 @@ if __name__ == "__main__":
                 #get main sip data from raw data
                 sip_data_list = pkt.sprintf("{Raw:%Raw.load%}").split("\\r\\n")
                 #pp(sip_data_list)
-                timestamp = datetime.datetime.fromtimestamp(pkt.time).isoformat()#.strftime('%Y-%m-%d %H:%M:%S')
+                timestamp = datetime.datetime.fromtimestamp(int(pkt.time)).isoformat()#.strftime('%Y-%m-%d %H:%M:%S')
                 status = sip_data_list[0]
                 c_seq = [sip_data for sip_data in sip_data_list if sip_data.startswith("CSeq: ")][0]
                 #init call
@@ -153,7 +156,6 @@ if __name__ == "__main__":
                     registration["user-agent"]["ip"], registration["registrar"]["ip"] = pkt.sprintf("{IP:%IP.src%-%IP.dst%}").split("-")
                 if "200 OK" in status and "REGISTER" in c_seq:
                     sip_data_list = pkt.sprintf("{Raw:%Raw.load%}").split("\\r\\n")
-                    #pp(sip_data_list)
                     for sip_data in sip_data_list:
                         if sip_data.startswith("From: "):
                             registration["registrar"]["uri"] = sip_data.split(" ")[1].split("@")[1].split(">")[0]
@@ -167,24 +169,26 @@ if __name__ == "__main__":
                     registration["time"]["registration"] = timestamp
                     save_registration(registration, root)
                 if "INVITE" in status and "INVITE" in c_seq:
-                    #pp(sip_data_list)
                     for sip_data in sip_data_list:
+                        if sip_data.startswith("From: "):
+                            call["caller"]["uri"] = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
                         if sip_data.startswith("m="):
                             call["rtp"]["caller"]["port"] = sip_data.split(" ")[1]
                         if sip_data.startswith("c="):
                             call["rtp"]["caller"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
                             call["caller"]["ip"] = call["rtp"]["caller"]["ip"]
-                    if call["time"].get("start") is None:
+                    if call["time"].get("start","") is "":
                         call["time"]["start"] = timestamp
                 if "200" in status and "INVITE" in c_seq:
-                    pp(sip_data_list)
                     for sip_data in sip_data_list:
-                        if sip_data.startswith("a="):
-                            call["rtp"]["codec"]["payload-type"] = re.findall(r'rtpmap:([0-9]+)',sip_data)[0]
-                            call["rtp"]["codec"]["name"] = sip_data.split(" ")[-1]
+                        if sip_data.startswith("a=rtpmap:"):
+                            if call["rtp"]["codec"]["payload-type"] is "":
+                                call["rtp"]["codec"]["payload-type"] = re.findall(r'rtpmap:([0-9]+)',sip_data)[0]
+                                call["rtp"]["codec"]["name"] = sip_data.split(" ")[-1]
                         if sip_data.startswith("m="):
                             call["rtp"]["callee"]["port"] = sip_data.split(" ")[1]
                     call["time"]["answer"] = timestamp
+
                 if "183" in status and "INVITE" in c_seq:
                     for sip_data in sip_data_list:
                         if sip_data.startswith("From: "):
@@ -196,16 +200,26 @@ if __name__ == "__main__":
                             call["callee"]["ip"] = call["rtp"]["callee"]["ip"]
 
                     call["time"]["answer"] = timestamp
-                if "486" in status or "480" in status and "INVITE" in c_seq:
+                if len(re.findall(r'[4-6][0-9][0-9]', status)) > 0 and "INVITE" in c_seq and "401" not in status:
+                    print status
+                    pp(sip_data_list)
+                    for sip_data in sip_data_list:
+                        if sip_data.startswith("Contact: "):
+                            call["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
+                        if sip_data.startswith("To: "):
+                            call["callee"]["uri"] = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
+                            
                     call["time"]["answer"] = call["time"]["end"] = timestamp
-                    print "saving from 486"
-                    save_call(call, root)
-                    call["time"]["start"] = None
+                    if "403" not in status and "408" not in status:
+                        print "saving form ERROR"
+                        save_call(call, root, rtp=False)
+                    call["time"]["start"] = ""
                 if "BYE" in status:
-                    call["time"]["end"] = datetime
+                    call["time"]["end"] = timestamp
                     print "saving from BYE"
                     save_call(call, root)
-                    call["time"]["start"] = None
+                    call["rtp"]["codec"]["payload-type"] = ""
+                    call["time"]["start"] = ""
             #sleep(0.3)
     else:
         signal.signal(signal.SIGINT, sigint_handler)
