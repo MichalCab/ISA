@@ -59,8 +59,8 @@ class SipScaner(object):
             for pkt in pkts:
                 self.do_packet_analysis(pkt)
         else:
-            signal.signal(signal.SIGINT, self.save_output)
-            sniff(iface=argv.interface, prn=packet_analysis, filter="port %s" % argv.port, store=0)
+            signal.signal(signal.SIGINT, self.sigint_signal_handler)
+            sniff(iface=argv.interface, prn=self.do_packet_analysis, filter="port %s" % argv.port, store=0)
 
         self.save_output(None, None)
 
@@ -122,7 +122,7 @@ class SipScaner(object):
                         self.registration["user-agent"]["uri"] = d
                     if sip_data.startswith("Via: "):
                         u = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b',sip_data)[0]
-                        self.registration["authentication"]["uri"] = u
+                        self.registration["authentication"]["uri"] = u #TODO not done
 
                 self.registration["time"]["registration"] = timestamp
                 self.save_registration()
@@ -272,17 +272,22 @@ class SipScaner(object):
                 codec_xml.set("payload-type", codec["payload-type"]) # "3"
                 codec_xml.set("name", codec["name"]) # gsm/8000/1
 
-    def save_output(self, signum, frame):
+    def save_output(self):
         """
         save xml to file
         """
         indent(self.root)
         tree = ET.ElementTree(self.root)
         tree.write(self.output_file)
+    def sigint_signal_handler(self, signum, frame):
+        self.save_output()
+        exit(1)
 
 def indent(elem, level=0):
     """
     function just for readable format of xml output
+    copied from
+    http://stackoverflow.com/a/4590052/2540163
     """
     i = "\n" + level*"  "
     if len(elem):

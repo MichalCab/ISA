@@ -1,0 +1,9 @@
+Analyzátor VoIP signalizace SIP
+===============================
+
+Pouštění
+--------
+./sipscan.py -f data.pcap -o output.xml
+./sipscan.py -f data.pcap -o output.xml -p 5061
+
+
