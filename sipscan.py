@@ -200,18 +200,17 @@ if __name__ == "__main__":
                             call["callee"]["ip"] = call["rtp"]["callee"]["ip"]
 
                     call["time"]["answer"] = timestamp
-                if len(re.findall(r'[4-6][0-9][0-9]', status)) > 0 and "INVITE" in c_seq and "401" not in status:
-                    print status
-                    pp(sip_data_list)
+                print ">c_seq: ",c_seq, ">status: ",status
+                if (len(re.findall(r'[4-6][0-9][0-9]', status)) > 0 
+                        and "INVITE" in c_seq and "401" not in status and "407" not in status and not ("INVITE" in c_seq and "INVITE" in status)):
                     for sip_data in sip_data_list:
                         if sip_data.startswith("Contact: "):
                             call["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
                         if sip_data.startswith("To: "):
                             call["callee"]["uri"] = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
-                            
                     call["time"]["answer"] = call["time"]["end"] = timestamp
                     if "403" not in status and "408" not in status:
-                        print "saving form ERROR"
+                        print "saving form ERROR %s & %s" % (status, c_seq)
                         save_call(call, root, rtp=False)
                     call["time"]["start"] = ""
                 if "BYE" in status:
