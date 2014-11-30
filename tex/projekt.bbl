@@ -1,4 +1,4 @@
-\begin{thebibliography}{}
+\begin{thebibliography}{1}
 \providecommand{\url}[1]{\texttt{#1}}
 \providecommand{\urlprefix}{URL }
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -7,5 +7,13 @@
   \urlstyle{rm}\Url}\fi
 \providecommand{\selectlanguage}[1]{\relax}
 \providecommand{\eprint}[2][]{\url{#2}}
+
+\bibitem{sdpRfc}
+{WWW stránky}: SDP: Session Description Protocol. {\tt
+  https://tools.ietf.org/html/rfc4566}.
+
+\bibitem{sipRfc}
+{WWW stránky}: SIP: Session Initiation Protocol. {\tt
+  https://www.ietf.org/rfc/rfc3261.txt}.
 
 \end{thebibliography}

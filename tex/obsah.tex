@@ -2,17 +2,30 @@
 % (c) Michal Cab, 2014
 
 \chapter{Úvod}
+Cílem projektu bylo vytvoøit program, který doká¾e analyzovat VoIP signalizace probíhající na síti a to buï pøímo real time a nebo ze souboru vytvoøeného programem, který doká¾e odchytávat komunikaci na síti a doká¾e ji ulo¾it ve formátu pcap. Bìhem projektu jsem aktivnì vyu¾íval rfc pøíslu¹né k jednotlivým protokolùm pou¾itým pøi VoIP signalizaci a to SIP \cite{sipRfc} a SDP \cite{sdpRfc}. 
+
 \chapter{Problematika}
+Voice over IP (VoIP) komunikace, mù¾e probíhat jak peer-to-peer tak i se serverem (ústøednou). Pøi komunikaci s ústøednou se volající klient v¾dy domlouvá první s ústøednou, tím je my¹lena potøebná registrace a následné oznámení, koho chceme volat. Ústøedna následnì dohledá volaného, a» u¾ je pøipojen pøímo k ní a nebo skrze sí» ústøeden. Jakmile se spojení vytvoøí, komunikuje se ji¾ jiný protokolem napøíklad RTP. Pøi analýze VoIP signalizace nám tedy staèí sledovat komunikaci jen napøíklad mezi volaným a ústøednou. Pokud chceme získat IP volaného, èi jeho uri, tak nahlí¾íme do paketù, které nám po¹le ústøedna. Tyto pakety obsahují námi po¾adované informace na analýzu hovoru.
+
 \chapter{Návrh aplikace}
-\chapter{Implementace}
-\section{Neúspì¹né hovory}
+V návrhu jsem se zamìøil na dekompozici problému, který øe¹ím. Vznikly mi následující èásti.
+\begin{enumerate}
+  \item Rozhodnutí, zda analyzovat soubor nebo sí»
+  \item Zpracování samotných paketù
+  \begin{itemize}
+    \item Registrace volajícího k ústøednì
+    \item Prùbìh hovoru
+  \end{itemize}
+  \item Naformátování a ulo¾ení výstupu
+\end{enumerate}
+Hlavní èástí je samozøejmì zpracování paketù, kdy jsem musel na základì rfc rozhodovat o tom, zda aktuální paket patøí do èásti registrace nebo hovoru. Následnì zjistit význam daného paketu. Jeliko¾ SIP komunikace je jasnì stanovena a lze oèekávat dané pakety popoøadì, nebylo slo¾ité vymyslet systém, jakým informace z paketù sbírat a následnì ukládat.
+
+\chapter{}
+
 \chapter{Program}
-\section{Popis}
-\section{Pou¾ití}
-./sipscan {-f|-i} name -o file [-p number] 
--f [--file] name -- dáta pre analýzu sa získajú zo súboru formátu pcap so zadaným názvom 
--i [--interface] name -- dáta sa odchytia s rozhrania zo zadaným názvom 
--o [--output] file -- výsledky sa zapí¹u do súboru so zadaným názvom 
--p [--port] num -- èíslo portu na ktorom prebieha signalizácia SIP 
+\section{Scapy}
+\section{Neúspì¹né hovory}
+\chapter{Závìr}
+
 
 %=========================================================================
