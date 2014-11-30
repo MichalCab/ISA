@@ -103,14 +103,15 @@ class SipScaner(object):
             status = sip_data_list[0]
             c_seq = ([sip_data for sip_data in sip_data_list 
                             if sip_data.startswith("CSeq: ")][0])
-
+	    #pp(sip_data_list)
             # Save realm when user doing authentication
             for sip_data in sip_data_list:
                 if sip_data.startswith("WWW-Authenticate: "):
                     realm = re.findall(r'realm="(.*?)"',sip_data)[0]
                     self.registration["authentication"]["realm"] = realm
 
-            output_info("c_seq: %s, status: %s" % (c_seq, status))
+            #output_info("c_seq: %s, status: %s" % (c_seq, status))
+	    #print pkt.sprintf("{IP:%IP.src%-%IP.dst%}")
             """
             Save ips of client and registrar when 
             some request about registration is maded
@@ -148,6 +149,9 @@ class SipScaner(object):
                     if sip_data.startswith("From: "):
                         u = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
                         self.call["caller"]["uri"] = u
+		    if sip_data.startswith("Via: "):
+			u = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
+			self.call["callee"]["ip"] = u
                     if sip_data.startswith("m=audio"):
                         p = sip_data.split(" ")[1]
                         self.call["rtps"]["audio"]["caller"]["port"] = p
