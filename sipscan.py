@@ -14,7 +14,7 @@ import socket
 import traceback
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from pprint import pprint as pp
+#from pprint import pprint as pp
 
 from scapy import *
 from scapy.all import *
@@ -103,7 +103,6 @@ class SipScaner(object):
             status = sip_data_list[0]
             c_seq = ([sip_data for sip_data in sip_data_list 
                             if sip_data.startswith("CSeq: ")][0])
-	    #pp(sip_data_list)
             # Save realm when user doing authentication
             for sip_data in sip_data_list:
                 if sip_data.startswith("WWW-Authenticate: "):
@@ -144,7 +143,6 @@ class SipScaner(object):
             Get data about who want to call where.
             """
             if "INVITE" in status and "INVITE" in c_seq:
-                #pp(sip_data_list)
                 for sip_data in sip_data_list:
                     if sip_data.startswith("From: "):
                         u = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
@@ -168,7 +166,6 @@ class SipScaner(object):
             Parse data, if connection is established. That mean callee answer.
             """
             if "200" in status and "INVITE" in c_seq:
-                pp(sip_data_list)
                 codecs = []
                 self.call["rtps"]["audio"]["payload_types"] = []
                 self.call["rtps"]["video"]["payload_types"] = []
@@ -214,7 +211,6 @@ class SipScaner(object):
                         self.call["rtps"]["audio"]["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
                         self.call["rtps"]["video"]["callee"]["ip"] = self.call["rtps"]["audio"]["callee"]["ip"]
                 self.call["time"]["answer"] = timestamp
-                print "--------------------------", self.call["rtps"]["video"]["callee"]["port"]
                 self.call["rtps"]["audio"]["codecs"] = []
                 self.call["rtps"]["video"]["codecs"] = []
                 # sort codecs to video/audio
@@ -248,8 +244,8 @@ class SipScaner(object):
             if (len(re.findall(r'[4-6][0-9][0-9]', status)) > 0
                     and "INVITE" in c_seq #invite request (call)
                     and "401" not in status #not save if "Unauthorized"
-                    and "403" not in status
-                    and "408" not in status
+                    #and "403" not in status
+                    #and "408" not in status
                     and "407" not in status #not save if "Proxy Authentication Required"
                     and not ("INVITE" in c_seq and "INVITE" in status)): # if double invite.. it is not final status, lets ignore that
                 for sip_data in sip_data_list:
@@ -258,7 +254,7 @@ class SipScaner(object):
                     if sip_data.startswith("To: "):
                         self.call["callee"]["uri"] = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
                 self.call["time"]["answer"] = self.call["time"]["end"] = timestamp
-                output_info("saving form ERROR %s & %s" % (status, c_seq))
+                output_info("saving from ERROR %s & %s" % (status, c_seq))
                 self.save_call()
                 self.call["time"]["start"] = ""
 
@@ -310,7 +306,6 @@ class SipScaner(object):
         time_xml.set("answer", self.call["time"]["answer"]) # 2013-08-15T09:00:02
         time_xml.set("end", self.call["time"]["end"]) # 2013-08-15T09:00:02
         for rtp in self.call["rtps"].values():
-            pp(rtp)
             if len(rtp["payload_types"]) is 0 or (int(rtp["callee"]["port"]) is 0 or int(rtp["caller"]["port"]) is 0):
                 continue
             rtp_xml = ET.SubElement(call_xml, "rtp")
