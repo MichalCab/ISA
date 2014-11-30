@@ -40,10 +40,23 @@ class SipScaner(object):
         self.call["caller"] = {}
         self.call["callee"] = {}
         self.call["time"] = {}
-        self.call["rtp"] = {}
-        self.call["rtp"]["caller"] = {}
-        self.call["rtp"]["callee"] = {}
-        self.call["rtp"]["codec"] = []
+        self.call["rtps"] = {
+            "audio":
+            {
+                "payload_types":[], 
+                "caller":{"port":"","ip":""},
+                "callee":{"port":"","ip":""},
+                "codecs":[]
+            },
+            "video":
+            {
+                "payload_types":[], 
+                "caller":{"port":"","ip":""}, 
+                "callee":{"port":"","ip":""},
+                "codecs":[]
+            }
+        }
+       
 
         #create output xml
         self.root = ET.Element("sipscan")
@@ -62,7 +75,7 @@ class SipScaner(object):
             signal.signal(signal.SIGINT, self.sigint_signal_handler)
             sniff(iface=argv.interface, prn=self.do_packet_analysis, filter="port %s" % argv.port, store=0)
 
-        self.save_output(None, None)
+        self.save_output()
 
     def do_packet_analysis(self, pkt):
         """
@@ -111,7 +124,6 @@ class SipScaner(object):
             then save succesfull registration to xml
             """
             if "200 OK" in status and "REGISTER" in c_seq:
-                pp(sip_data_list)
                 for sip_data in sip_data_list:
                     if sip_data.startswith("To: "):
                         d = re.findall(r'<(.*?)>', sip_data)[0].strip("sip:")
@@ -131,48 +143,83 @@ class SipScaner(object):
             Get data about who want to call where.
             """
             if "INVITE" in status and "INVITE" in c_seq:
+                #pp(sip_data_list)
                 for sip_data in sip_data_list:
                     if sip_data.startswith("From: "):
                         u = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
                         self.call["caller"]["uri"] = u
-                    if sip_data.startswith("m="):
+                    if sip_data.startswith("m=audio"):
                         p = sip_data.split(" ")[1]
-                        self.call["rtp"]["caller"]["port"] = p
-                    if sip_data.startswith("o="):
-                        ip = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
-                        self.call["rtp"]["caller"]["ip"] = ip
-                        self.call["caller"]["ip"] = self.call["rtp"]["caller"]["ip"]
+                        self.call["rtps"]["audio"]["caller"]["port"] = p
+                    if sip_data.startswith("m=video"):
+                        p = sip_data.split(" ")[1]
+                        self.call["rtps"]["video"]["caller"]["port"] = p
                 if self.call["time"].get("start","") is "":
                     self.call["time"]["start"] = timestamp
-                self.call["rtp"]["callee"]["ip"] = pkt.sprintf("{IP:%IP.dst%}")
-                self.call["callee"]["ip"] = pkt.sprintf("{IP:%IP.dst%}")
+                self.call["rtps"]["audio"]["caller"]["ip"] = pkt.sprintf("{IP:%IP.src%}")
+                self.call["rtps"]["video"]["caller"]["ip"] = pkt.sprintf("{IP:%IP.src%}")
+                self.call["caller"]["ip"] = pkt.sprintf("{IP:%IP.src%}")
 
             """
             Parse data, if connection is established. That mean callee answer.
             """
             if "200" in status and "INVITE" in c_seq:
+                pp(sip_data_list)
+                codecs = []
+                self.call["rtps"]["audio"]["payload_types"] = []
+                self.call["rtps"]["video"]["payload_types"] = []
                 for sip_data in sip_data_list:
+                    # take caller uri
                     if sip_data.startswith("From: "):
                         self.call["caller"]["uri"] = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
+                    # take callee uri
                     if sip_data.startswith("To: "):
                         self.call["callee"]["uri"] = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
+                    # take callee ip
                     if sip_data.startswith("o="):
-                        self.call["rtp"]["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
-                        self.call["callee"]["ip"] = self.call["rtp"]["callee"]["ip"]
+                        self.call["rtps"]["audio"]["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
+                        self.call["rtps"]["video"]["callee"]["ip"] = self.call["rtps"]["audio"]["callee"]["ip"]
+                        self.call["callee"]["ip"] = self.call["rtps"]["audio"]["callee"]["ip"]
+                    # take codecs
                     if sip_data.startswith("a=rtpmap:"):
-                        try:
-                            codec = {
-                                "payload-type":re.findall(r'rtpmap:([0-9]+)',sip_data)[0], 
-                                "name":sip_data.split(" ")[-1]
-                            }
-                            self.call["rtp"]["codec"].append(codec)
-                        except Exception, e:
-                            output_info(traceback.print_exc(e))
-                    if sip_data.startswith("m="):
-                        self.call["rtp"]["callee"]["port"] = sip_data.split(" ")[1]
+                        #try:
+                        codec = {
+                            "payload-type":re.findall(r'rtpmap:([0-9]+)',sip_data)[0], 
+                            "name":sip_data.split(" ")[-1]
+                        }
+                        codecs.append(codec)
+                        #except Exception, e:
+                        #    output_info(traceback.print_exc(e))
+
+                    # take audio port and codecs
+                    if sip_data.startswith("m=audio"):
+                        self.call["rtps"]["audio"]["callee"]["port"] = sip_data.split(" ")[1]
+                        for payload_number in sip_data.split(" "):
+                            number = re.findall(r'[0-9]+', payload_number)
+                            if len(number) > 0 and int(number[0]) != int(self.call["rtps"]["audio"]["callee"]["port"]):
+                                self.call["rtps"]["audio"]["payload_types"].append(int(number[0]))
+                    # take video port and codecs
+                    if sip_data.startswith("m=video"):
+                        self.call["rtps"]["video"]["callee"]["port"] = sip_data.split(" ")[1]
+                        for payload_number in sip_data.split(" "):
+                            number = re.findall(r'[0-9]+', payload_number)
+                            if len(number) > 0 and int(number[0]) != int(self.call["rtps"]["video"]["callee"]["port"]):
+                                self.call["rtps"]["video"]["payload_types"].append(int(number[0]))
+                    # take callee ip
                     if sip_data.startswith("o="):
-                        self.call["rtp"]["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
+                        self.call["rtps"]["audio"]["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
+                        self.call["rtps"]["video"]["callee"]["ip"] = self.call["rtps"]["audio"]["callee"]["ip"]
                 self.call["time"]["answer"] = timestamp
+                print "--------------------------", self.call["rtps"]["video"]["callee"]["port"]
+                self.call["rtps"]["audio"]["codecs"] = []
+                self.call["rtps"]["video"]["codecs"] = []
+                # sort codecs to video/audio
+                for codec in codecs:
+                    if int(codec["payload-type"]) in self.call["rtps"]["video"]["payload_types"]:
+                        self.call["rtps"]["video"]["codecs"].append(codec)
+                    if int(codec["payload-type"]) in self.call["rtps"]["audio"]["payload_types"]:
+                        self.call["rtps"]["audio"]["codecs"].append(codec)
+
 
             """
             call is established, rtp communication will start in sec..
@@ -185,8 +232,9 @@ class SipScaner(object):
                     if sip_data.startswith("To: "):
                         self.call["callee"]["uri"] = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
                     if sip_data.startswith("o="):
-                        self.call["rtp"]["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
-                        self.call["callee"]["ip"] = self.call["rtp"]["callee"]["ip"]
+                        self.call["rtps"]["audio"]["callee"]["ip"] = re.findall(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', sip_data)[0]
+                        self.call["rtps"]["video"]["callee"]["ip"] = self.call["rtps"]["audio"]["callee"]["ip"]
+                        self.call["callee"]["ip"] = self.call["rtps"]["audio"]["callee"]["ip"]
 
                 self.call["time"]["answer"] = timestamp
 
@@ -207,7 +255,7 @@ class SipScaner(object):
                         self.call["callee"]["uri"] = re.findall('<(.*?)>',sip_data)[0].strip("sip:")
                 self.call["time"]["answer"] = self.call["time"]["end"] = timestamp
                 output_info("saving form ERROR %s & %s" % (status, c_seq))
-                self.save_call(rtp=False)
+                self.save_call()
                 self.call["time"]["start"] = ""
 
             """
@@ -240,7 +288,7 @@ class SipScaner(object):
         time_xml = ET.SubElement(registration_xml, "time")
         time_xml.set("registration", self.registration["time"]["registration"]) #2005-12-30T09:00:00
 
-    def save_call(self, rtp=True):
+    def save_call(self):
         """
         save call data to xml scructure
         """
@@ -257,18 +305,21 @@ class SipScaner(object):
         time_xml.set("start", self.call["time"]["start"]) # 2013-08-15T09:00:02
         time_xml.set("answer", self.call["time"]["answer"]) # 2013-08-15T09:00:02
         time_xml.set("end", self.call["time"]["end"]) # 2013-08-15T09:00:02
-        if rtp:
+        for rtp in self.call["rtps"].values():
+            pp(rtp)
+            if len(rtp["payload_types"]) is 0:
+                continue
             rtp_xml = ET.SubElement(call_xml, "rtp")
             caller_xml = ET.SubElement(rtp_xml, "caller")
-            caller_xml.set("ip", self.call["rtp"]["caller"]["ip"]) # "192.168.1.117"
-            caller_xml.set("port", self.call["rtp"]["caller"]["port"]) # "5084"
+            caller_xml.set("ip", rtp["caller"]["ip"]) # "192.168.1.117"
+            caller_xml.set("port", rtp["caller"]["port"]) # "5084"
 
             callee_xml = ET.SubElement(rtp_xml, "callee")
-            callee_xml.set("ip", self.call["rtp"]["callee"]["ip"]) # "192.168.1.50"
-            callee_xml.set("port", self.call["rtp"]["callee"]["port"]) # "5066"
+            callee_xml.set("ip", rtp["callee"]["ip"]) # "192.168.1.50"
+            callee_xml.set("port", rtp["callee"]["port"]) # "5066"
 
             codec_xml = ET.SubElement(rtp_xml, "codec")
-            for codec in self.call["rtp"]["codec"]:
+            for codec in rtp["codecs"]:
                 codec_xml.set("payload-type", codec["payload-type"]) # "3"
                 codec_xml.set("name", codec["name"]) # gsm/8000/1
 
