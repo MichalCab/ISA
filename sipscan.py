@@ -307,7 +307,7 @@ class SipScaner(object):
         time_xml.set("end", self.call["time"]["end"]) # 2013-08-15T09:00:02
         for rtp in self.call["rtps"].values():
             pp(rtp)
-            if len(rtp["payload_types"]) is 0:
+            if len(rtp["payload_types"]) is 0 or (int(rtp["callee"]["port"]) is 0 or int(rtp["caller"]["port"]) is 0):
                 continue
             rtp_xml = ET.SubElement(call_xml, "rtp")
             caller_xml = ET.SubElement(rtp_xml, "caller")
